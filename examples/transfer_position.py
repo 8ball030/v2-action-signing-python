@@ -22,13 +22,13 @@ def main():
     # Get existing testnet subaccount info #
     ########################################
     # SMART_CONTRACT_WALLET_ADDRESS
-    DERIVE_CONTRACT_WALLET_ADDRESS = "0x8772185a1516f0d61fC1c2524926BfC69F95d698" 
-    SESSION_KEY_PRIVATE_KEY = "0x2ae8be44db8a590d20bffbe3b6872df9b569147d3bf6801a35a28281a4816bbd"
+    DERIVE_CONTRACT_WALLET_ADDRESS = "0xeda0656dab4094C7Dc12F8F12AF75B5B3Af4e776"
+    SESSION_KEY_PRIVATE_KEY = "0x5cc148b7596b905e162c4fec4aba2cd8f4eb24c230cac6619ac7f28f38791316"
     web3_client = Web3()
     session_key_wallet = web3_client.eth.account.from_key(SESSION_KEY_PRIVATE_KEY)
 
-    FROM_SUBACCOUNT_ID = 30769
-    TO_SUBACCOUNT_ID = 31049
+    FROM_SUBACCOUNT_ID = 137402
+    TO_SUBACCOUNT_ID = 137404
 
     #############################################
     # Protocol Constants from docs.lyra.finance #
@@ -82,7 +82,7 @@ def main():
             asset_address=instrument["base_asset_address"],
             sub_id=int(instrument["base_asset_sub_id"]),
             limit_price=transfer_price,
-            amount=transfer_amount,  # Positive amount (direction determines sell/buy)
+            amount=transfer_amount,  
             max_fee=Decimal("0"),  # No fee for position transfers
             recipient_id=TO_SUBACCOUNT_ID,
             is_bid=False,  # This is a sell order (maker)
@@ -105,7 +105,7 @@ def main():
             asset_address=instrument["base_asset_address"],
             sub_id=int(instrument["base_asset_sub_id"]),
             limit_price=transfer_price,
-            amount=transfer_amount,  # Positive amount for buying/receiving position
+            amount=transfer_amount,
             max_fee=Decimal("0"),  # No fee for position transfers
             recipient_id=FROM_SUBACCOUNT_ID,
             is_bid=True,  # This is a buy order (taker)
@@ -148,11 +148,11 @@ def main():
     try:
         response_data = response.json()
         if response.status_code == 200 and 'result' in response_data:
-            print("✅ Transfer Position Success:", json.dumps(response_data, indent=4))
+            print("Transfer Position Success:", json.dumps(response_data, indent=4))
         else:
-            print("❌ Transfer Position Error:", json.dumps(response_data, indent=4))
+            print("Transfer Position Error:", json.dumps(response_data, indent=4))
     except requests.exceptions.JSONDecodeError:
-        print(f"❌ Invalid JSON response: {response.text}")
+        print(f"Invalid JSON response: {response.text}")
 
 
 if __name__ == "__main__":
