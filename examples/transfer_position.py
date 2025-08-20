@@ -7,19 +7,13 @@
 # This example goes over #2
 
 import json
+import time
+from decimal import ROUND_HALF_UP, Decimal
+
 import requests
 from web3 import Web3
-from decimal import Decimal
-import time
-from derive_action_signing import (
-    SignedAction,
-    TradeModuleData,
-    utils,
-)
 
-from rich.console import Console
-
-print = Console().print
+from derive_action_signing import SignedAction, TradeModuleData, utils
 
 
 def main():
@@ -29,6 +23,7 @@ def main():
     # SMART_CONTRACT_WALLET_ADDRESS
     DERIVE_CONTRACT_WALLET_ADDRESS = "0xeda0656dab4094C7Dc12F8F12AF75B5B3Af4e776"
     SESSION_KEY_PRIVATE_KEY = "0x83ee63dc6655509aabce0f7e501a31c511195e61e9d0e9917f0a55fd06041a66"
+    
     web3_client = Web3()
     session_key_wallet = web3_client.eth.account.from_key(SESSION_KEY_PRIVATE_KEY)
 
@@ -38,59 +33,122 @@ def main():
     #############################################
     # Protocol Constants from docs.lyra.finance #
     #############################################
-
+    
     DOMAIN_SEPARATOR = "0x9bcf4dc06df5d8bf23af818d5716491b995020f377d3b7b64c29ed14e3dd1105"
     ACTION_TYPEHASH = "0x4d7a9f27c403ff9c0f19bce61d76d82f9aa29f8d6d4b0c5474607d9770d1af17"
+    
     # single position transfers use TRADE_MODULE_ADDRESS
     TRADE_MODULE_ADDRESS = "0x87F2863866D85E3192a35A73b388BD625D83f2be"
-    # WebSocket for position opening
-    WEBSOCKET_URL = "wss://api-demo.lyra.finance/ws"
 
     ###################################
-    # Get a live instrument to transfer #
+    # Get user's positions and find instrument #
     ###################################
 
-    # Get a currently active instrument
-    url = "https://api-demo.lyra.finance/public/get_instruments"
-    response = requests.post(
-        url,
-        json={
-            "currency": "ETH",
-            "instrument_type": "perp",
-            "expired": False
+    # First get user's positions to find what instruments they have
+    positions_response = requests.post(
+        "https://api-demo.lyra.finance/private/get_positions",
+        json={"subaccount_id": FROM_SUBACCOUNT_ID},
+        headers={
+            **utils.sign_rest_auth_header(
+                web3_client, DERIVE_CONTRACT_WALLET_ADDRESS, SESSION_KEY_PRIVATE_KEY
+            ),
+            "accept": "application/json",
+            "content-type": "application/json",
         },
-        headers={"accept": "application/json", "content-type": "application/json"},
     )
-    instruments = response.json()["result"]
-    # Find an active instrument
-    active_instruments = [inst for inst in instruments if inst["is_active"]]
-    if not active_instruments:
-        print("No active instruments found")
+    positions_data = positions_response.json()["result"]
+
+    if not positions_data["positions"]:
+        print("No positions found")
         return
-    instrument = active_instruments[0]  # Use the first active instrument
+
+    # Get the first instrument from user's positions
+    first_position = positions_data["positions"][0]
+    instrument_name = first_position["instrument_name"]
+    instrument_type = first_position["instrument_type"]
+
+    print(f"Found user instrument: {instrument_name} ({instrument_type})")
+
+    # Now get the full instrument details from get_instruments
+    if instrument_type == "perp":
+        instruments_response = requests.post(
+            "https://api-demo.lyra.finance/public/get_instruments",
+            json={"currency": "ETH", "instrument_type": "perp", "expired": False},
+            headers={"accept": "application/json", "content-type": "application/json"},
+        )
+        instruments = instruments_response.json()["result"]
+        instrument = next(
+            inst for inst in instruments if inst["instrument_name"] == instrument_name
+        )
+    else:
+        instruments_response = requests.post(
+            "https://api-demo.lyra.finance/public/get_instruments",
+            json={"currency": "ETH", "instrument_type": "option", "expired": False},
+            headers={"accept": "application/json", "content-type": "application/json"},
+        )
+        instruments = instruments_response.json()["result"]
+        instrument = next(
+            inst for inst in instruments if inst["instrument_name"] == instrument_name
+        )
+
     print(f"Selected instrument for transfer: {instrument['instrument_name']}")
-    
+
+    # Get position details for dynamic amount and price
+    position = first_position
+    position_amount = (
+        Decimal(position["amount"]) if position["amount"] != "0" else Decimal("0.1")
+    )  # Use 0.1 as minimum if no position
+    position_price = (
+        Decimal(position["mark_value"])
+        if position["mark_value"] != "0"
+        else Decimal(instrument.get("mark_price", "100"))
+    )
+
+    position_amount = position_amount.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    position_price = position_price.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+    print(f"Position amount: {position_amount}")
+    print(f"Position average price: {position_price}")
+
     ###################
     # Define Transfer #
     ###################
 
-    # Transfer amount and price for the position (matching opened position)
-    transfer_amount = Decimal("1")
-    transfer_price = Decimal("100")
-    
+    # Transfer amount and price from position data, with 0 fees for transfers
+    transfer_amount = abs(position_amount)  # Use absolute value for transfer amount
+    transfer_price = position_price
+    max_fee = Decimal("0")  # No fees for transfers
+
+    # Determine maker direction - maker must reduce their position
+    # If position is positive, maker sells (reduces long position)
+    # If position is negative, maker buys (reduces short position)
+    original_position_amount = Decimal(position["amount"])
+    if original_position_amount > 0:
+        maker_is_bid = False  # Sell to reduce long position
+        maker_direction = "sell"
+        taker_is_bid = True  # Taker buys
+        taker_direction = "buy"
+    else:
+        maker_is_bid = True  # Buy to reduce short position
+        maker_direction = "buy"
+        taker_is_bid = False  # Taker sells
+        taker_direction = "sell"
+
+    print(f"Original position amount: {original_position_amount}")
+    print(f"Maker direction: {maker_direction} (reducing position)")
+    print(f"Taker direction: {taker_direction}")
+
     print("Creating transfer-specific signed actions...")
-    
-    # Create maker order parameters (sell)
+
+    # Create maker order parameters
     maker_nonce = utils.get_action_nonce()
     maker_signature_expiry = utils.MAX_INT_32
-    
-    # Create taker order parameters (buy) - ensure different nonce
-    import time
+
+    # Create taker order parameters - ensure different nonce
     time.sleep(0.001)  # Small delay to ensure different timestamp
     taker_nonce = utils.get_action_nonce()
     taker_signature_expiry = utils.MAX_INT_32
-    
-    # For now, let's create basic signed actions and see if we can modify the signing
+
     maker_action = SignedAction(
         subaccount_id=FROM_SUBACCOUNT_ID,
         owner=DERIVE_CONTRACT_WALLET_ADDRESS,
@@ -102,10 +160,10 @@ def main():
             asset_address=instrument["base_asset_address"],
             sub_id=int(instrument["base_asset_sub_id"]),
             limit_price=transfer_price,
-            amount=transfer_amount,  
-            max_fee=Decimal("0"),
+            amount=transfer_amount,
+            max_fee=max_fee,
             recipient_id=FROM_SUBACCOUNT_ID,
-            is_bid=False,
+            is_bid=maker_is_bid,
         ),
         DOMAIN_SEPARATOR=DOMAIN_SEPARATOR,
         ACTION_TYPEHASH=ACTION_TYPEHASH,
@@ -123,9 +181,9 @@ def main():
             sub_id=int(instrument["base_asset_sub_id"]),
             limit_price=transfer_price,
             amount=transfer_amount,
-            max_fee=Decimal("0"),
+            max_fee=max_fee,
             recipient_id=TO_SUBACCOUNT_ID,
-            is_bid=True,
+            is_bid=taker_is_bid,
         ),
         DOMAIN_SEPARATOR=DOMAIN_SEPARATOR,
         ACTION_TYPEHASH=ACTION_TYPEHASH,
@@ -138,37 +196,22 @@ def main():
     # Initiate Transfer #
     #####################
 
-    # Create transfer_position specific parameters
-    # All these fields must be included in the signature for transfer_position
+    # Create transfer_position parameters using dynamic directions
     maker_params = {
-        "subaccount_id": maker_action.subaccount_id,
-        "nonce": maker_action.nonce,
-        "signer": maker_action.signer,
-        "signature_expiry_sec": maker_action.signature_expiry_sec,
-        "signature": maker_action.signature,
-        "amount": str(transfer_amount),
-        "direction": "sell",
+        "direction": maker_direction,
         "instrument_name": instrument["instrument_name"],
-        "limit_price": str(transfer_price),
-        "max_fee": "0",
+        **maker_action.to_json(),
     }
-    
+
     taker_params = {
-        "subaccount_id": taker_action.subaccount_id,
-        "nonce": taker_action.nonce,
-        "signer": taker_action.signer,
-        "signature_expiry_sec": taker_action.signature_expiry_sec,
-        "signature": taker_action.signature,
-        "amount": str(transfer_amount),
-        "direction": "buy", 
+        "direction": taker_direction,
         "instrument_name": instrument["instrument_name"],
-        "limit_price": str(transfer_price),
-        "max_fee": "0",
+        **taker_action.to_json(),
     }
-    
+
     print(f"Using instrument: {instrument['instrument_name']}")
     print(f"Transfer amount: {transfer_amount}")
-    
+
     response = requests.post(
         "https://api-demo.lyra.finance/private/transfer_position",
         json={
@@ -177,14 +220,17 @@ def main():
             "taker_params": taker_params,
         },
         headers={
-            **utils.sign_rest_auth_header(web3_client, DERIVE_CONTRACT_WALLET_ADDRESS, SESSION_KEY_PRIVATE_KEY),
+            **utils.sign_rest_auth_header(
+                web3_client, DERIVE_CONTRACT_WALLET_ADDRESS, SESSION_KEY_PRIVATE_KEY
+            ),
             "accept": "application/json",
             "content-type": "application/json",
         },
     )
+
     try:
         response_data = response.json()
-        if response.status_code == 200 and 'result' in response_data:
+        if response.status_code == 200 and "result" in response_data:
             print("Transfer Position Success:", json.dumps(response_data, indent=4))
         else:
             print("Transfer Position Error:", json.dumps(response_data, indent=4))
