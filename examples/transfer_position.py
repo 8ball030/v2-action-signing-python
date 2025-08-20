@@ -56,7 +56,7 @@ def main():
         url,
         json={
             "currency": "ETH",
-            "instrument_type": "option",
+            "instrument_type": "perp",
             "expired": False
         },
         headers={"accept": "application/json", "content-type": "application/json"},
@@ -77,10 +77,6 @@ def main():
     # Transfer amount and price for the position (matching opened position)
     transfer_amount = Decimal("1")
     transfer_price = Decimal("100")
-
-    # For transfer_position, we need to create orders that include all required fields
-    # in the signature. Let's try using the basic order structure that includes
-    # direction and instrument_name as part of the signed data.
     
     print("Creating transfer-specific signed actions...")
     
@@ -108,7 +104,7 @@ def main():
             limit_price=transfer_price,
             amount=transfer_amount,  
             max_fee=Decimal("0"),
-            recipient_id=TO_SUBACCOUNT_ID,
+            recipient_id=FROM_SUBACCOUNT_ID,
             is_bid=False,
         ),
         DOMAIN_SEPARATOR=DOMAIN_SEPARATOR,
@@ -128,7 +124,7 @@ def main():
             limit_price=transfer_price,
             amount=transfer_amount,
             max_fee=Decimal("0"),
-            recipient_id=FROM_SUBACCOUNT_ID,
+            recipient_id=TO_SUBACCOUNT_ID,
             is_bid=True,
         ),
         DOMAIN_SEPARATOR=DOMAIN_SEPARATOR,
@@ -172,16 +168,9 @@ def main():
     
     print(f"Using instrument: {instrument['instrument_name']}")
     print(f"Transfer amount: {transfer_amount}")
-    # print("DEBUG: Maker params:", json.dumps(maker_params, indent=2, default=str))
-    # print("DEBUG: Taker params:", json.dumps(taker_params, indent=2, default=str))
-
-
-    
-    
-    
     
     response = requests.post(
-        "https://api-demo.lyra.finance/private/transfer_position_debug",
+        "https://api-demo.lyra.finance/private/transfer_position",
         json={
             "wallet": DERIVE_CONTRACT_WALLET_ADDRESS,
             "maker_params": maker_params,
@@ -196,20 +185,7 @@ def main():
     try:
         response_data = response.json()
         if response.status_code == 200 and 'result' in response_data:
-            # print("Transfer Position Success:", json.dumps(response_data, indent=4))
-            print("[red]Actual: ")
-            print(f"{response_data['result']['maker_result']['action_hash']=}")
-            print(f"{maker_action._get_action_hash()=}")
-            print("[green]Expected: ")
-            print(f"{response_data['result']['maker_result']['typed_data_hash']=}")
-            print(f"{maker_action._to_typed_data_hash()=}")
-            print("-" * 200)
-            print("[red]Actual: ")
-            print(f"{response_data['result']['taker_result']['action_hash']=}")
-            print(f"{taker_action._get_action_hash()=}")
-            print("[green]Expected: ")
-            print(f"{response_data['result']['taker_result']['typed_data_hash']=}")
-            print(f"{taker_action._to_typed_data_hash()=}")
+            print("Transfer Position Success:", json.dumps(response_data, indent=4))
         else:
             print("Transfer Position Error:", json.dumps(response_data, indent=4))
     except requests.exceptions.JSONDecodeError:
