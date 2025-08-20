@@ -39,7 +39,7 @@ def main():
         "https://api-demo.lyra.finance/public/get_instruments",
         json={
             "expired": False,
-            "instrument_type": "option",
+            "instrument_type": "perp",
             "currency": "ETH",
         },
         headers={"accept": "application/json", "content-type": "application/json"},

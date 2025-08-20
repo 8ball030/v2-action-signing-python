@@ -26,13 +26,13 @@ def main():
     # Get existing testnet subaccount info #
     ########################################
 
-    SMART_CONTRACT_WALLET_ADDRESS = "0x8772185a1516f0d61fC1c2524926BfC69F95d698"
-    SESSION_KEY_PRIVATE_KEY = "0x2ae8be44db8a590d20bffbe3b6872df9b569147d3bf6801a35a28281a4816bbd"
+    SMART_CONTRACT_WALLET_ADDRESS = "0xeda0656dab4094C7Dc12F8F12AF75B5B3Af4e776"
+    SESSION_KEY_PRIVATE_KEY = "0x83ee63dc6655509aabce0f7e501a31c511195e61e9d0e9917f0a55fd06041a66"
     web3_client = Web3()
     session_key_wallet = web3_client.eth.account.from_key(SESSION_KEY_PRIVATE_KEY)
 
-    FROM_SUBACCOUNT_ID = 30769
-    TO_SUBACCOUNT_ID = 31049
+    FROM_SUBACCOUNT_ID = 137402
+    TO_SUBACCOUNT_ID = 137404
 
     #############################################
     # Protocol Constants from docs.lyra.finance #
@@ -47,25 +47,46 @@ def main():
     # Get two random live instruments #
     ###################################
 
-    url = "https://api-demo.lyra.finance/public/get_instrument"
+    # url = "https://api-demo.lyra.finance/public/get_instrument"
+    # response = requests.post(
+    #     url,
+    #     json={
+    #         "instrument_name": "ETH-20240329-1600-C",
+    #     },
+    #     headers={"accept": "application/json", "content-type": "application/json"},
+    # )
+    # first_instrument = response.json()["result"]
+
+    # response = requests.post(
+    #     url,
+    #     json={
+    #         "instrument_name": "ETH-20240329-1600-P",
+    #     },
+    #     headers={"accept": "application/json", "content-type": "application/json"},
+    # )
+    # second_instrument = response.json()["result"]
+
+    url = "https://api-demo.lyra.finance/public/get_instruments"
     response = requests.post(
         url,
         json={
-            "instrument_name": "ETH-20240329-1600-C",
+            "currency": "ETH",
+            "instrument_type": "option",
+            "expired": False
         },
         headers={"accept": "application/json", "content-type": "application/json"},
     )
-    first_instrument = response.json()["result"]
+    instruments = response.json()["result"]
+    # Find an active instrument
+    active_instruments = [inst for inst in instruments if inst["is_active"]]
+    if not active_instruments:
+        print("No active instruments found")
+        return
+    first_instrument = active_instruments[0]  # Use the first active instrument
+    print(f"Selected instrument for transfer: {first_instrument['instrument_name']}")
 
-    response = requests.post(
-        url,
-        json={
-            "instrument_name": "ETH-20240329-1600-P",
-        },
-        headers={"accept": "application/json", "content-type": "application/json"},
-    )
-    second_instrument = response.json()["result"]
-
+    second_instrument = active_instruments[1]  # Use the first active instrument
+    print(f"Selected instrument for transfer: {second_instrument['instrument_name']}")
     ###################
     # Define Transfer #
     ###################
