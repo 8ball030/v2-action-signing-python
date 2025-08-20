@@ -13,11 +13,9 @@
 
 # This example goes over #2
 
-import json
 import requests
 from web3 import Web3
 from decimal import Decimal
-import time
 from derive_action_signing import (
     SignedAction,
     TradeModuleData,
@@ -42,7 +40,9 @@ def test_transfer_positions(
     ########################################
     # SMART_CONTRACT_WALLET_ADDRESS
     DERIVE_CONTRACT_WALLET_ADDRESS = "0xeda0656dab4094C7Dc12F8F12AF75B5B3Af4e776"
-    SESSION_KEY_PRIVATE_KEY = "0x83ee63dc6655509aabce0f7e501a31c511195e61e9d0e9917f0a55fd06041a66"
+    SESSION_KEY_PRIVATE_KEY = (
+        "0x83ee63dc6655509aabce0f7e501a31c511195e61e9d0e9917f0a55fd06041a66"
+    )
     web3_client = Web3()
     session_key_wallet = web3_client.eth.account.from_key(SESSION_KEY_PRIVATE_KEY)
 
@@ -53,11 +53,7 @@ def test_transfer_positions(
     url = "https://api-demo.lyra.finance/public/get_instruments"
     response = requests.post(
         url,
-        json={
-            "currency": "ETH",
-            "instrument_type": "option",
-            "expired": False
-        },
+        json={"currency": "ETH", "instrument_type": "option", "expired": False},
         headers={"accept": "application/json", "content-type": "application/json"},
     )
     instruments = response.json()["result"]
@@ -68,7 +64,7 @@ def test_transfer_positions(
         return
     instrument = active_instruments[0]  # Use the first active instrument
     print(f"Selected instrument for transfer: {instrument['instrument_name']}")
-    
+
     ###################
     # Define Transfer #
     ###################
@@ -81,13 +77,7 @@ def test_transfer_positions(
     # For transfer_position, we need to create orders that include all required fields
     # in the signature. Let's try using the basic order structure that includes
     # direction and instrument_name as part of the signed data.
-    
-    print("Creating transfer-specific signed actions...")
-    
-    # Create maker order parameters (sell)
-    
-    # Create taker order parameters (buy) - ensure different nonce
-    
+
     # For now, let's create basic signed actions and see if we can modify the signing
     maker_action = SignedAction(
         subaccount_id=FROM_SUBACCOUNT_ID,
@@ -100,7 +90,7 @@ def test_transfer_positions(
             asset_address=instrument["base_asset_address"],
             sub_id=int(instrument["base_asset_sub_id"]),
             limit_price=transfer_price,
-            amount=transfer_amount,  
+            amount=transfer_amount,
             max_fee=max_fee,
             recipient_id=FROM_SUBACCOUNT_ID,
             is_bid=True,
@@ -108,9 +98,6 @@ def test_transfer_positions(
         DOMAIN_SEPARATOR=domain_separator,
         ACTION_TYPEHASH=action_typehash,
     )
-
-    maker_action.sign(session_key_wallet.key)
-
 
     taker_action = SignedAction(
         subaccount_id=TO_SUBACCOUNT_ID,
@@ -133,6 +120,7 @@ def test_transfer_positions(
     )
 
     # Sign the actions
+    maker_action.sign(session_key_wallet.key)
     taker_action.sign(session_key_wallet.key)
     #####################
     # Initiate Transfer #
@@ -145,23 +133,18 @@ def test_transfer_positions(
         "instrument_name": instrument["instrument_name"],
         **maker_action.to_json(),
     }
-    
+
     taker_params = {
-        "direction": "sell", 
+        "direction": "sell",
         "instrument_name": instrument["instrument_name"],
         **taker_action.to_json(),
     }
-    
+
     print(f"Using instrument: {instrument['instrument_name']}")
     print(f"Transfer amount: {transfer_amount}")
     # print("DEBUG: Maker params:", json.dumps(maker_params, indent=2, default=str))
     # print("DEBUG: Taker params:", json.dumps(taker_params, indent=2, default=str))
 
-
-    
-    
-    
-    
     response = requests.post(
         "https://api-demo.lyra.finance/private/transfer_position_debug",
         json={
@@ -170,26 +153,54 @@ def test_transfer_positions(
             "taker_params": taker_params,
         },
         headers={
-            **sign_rest_auth_header(web3_client, DERIVE_CONTRACT_WALLET_ADDRESS, SESSION_KEY_PRIVATE_KEY),
+            **sign_rest_auth_header(
+                web3_client, DERIVE_CONTRACT_WALLET_ADDRESS, SESSION_KEY_PRIVATE_KEY
+            ),
             "accept": "application/json",
             "content-type": "application/json",
         },
     )
 
-    response_data = response.json().get('result')
+    response_data = response.json().get("result")
 
     # verify the maker and taker results
     ## verify encoded abi data
-    assert "0x" + maker_action.module_data.to_abi_encoded().hex() == response_data['maker_result']['encoded_data']
-    assert "0x" + taker_action.module_data.to_abi_encoded().hex() == response_data['taker_result']['encoded_data']
+    assert (
+        "0x" + maker_action.module_data.to_abi_encoded().hex()
+        == response_data["maker_result"]["encoded_data"]
+    )
+    assert (
+        "0x" + taker_action.module_data.to_abi_encoded().hex()
+        == response_data["taker_result"]["encoded_data"]
+    )
 
     ## Verify action hash
-    assert "0x" + maker_action._get_action_hash().hex() == response_data['maker_result']['action_hash'], f"Maker action hash mismatch (expected: {maker_action._get_action_hash()}, actual: {response_data['maker_result']['action_hash']})"
-    assert "0x" + taker_action._get_action_hash().hex() == response_data['taker_result']['action_hash'], f"Taker action hash mismatch (expected: {taker_action._get_action_hash()}, actual: {response_data['taker_result']['action_hash']})"
+    assert (
+        "0x" + maker_action._get_action_hash().hex()
+        == response_data["maker_result"]["action_hash"]
+    ), (
+        f"expected: {maker_action._get_action_hash()}, ",
+        f"actual: {response_data['maker_result']['action_hash']}",
+    )
+    assert (
+        "0x" + taker_action._get_action_hash().hex()
+        == response_data["taker_result"]["action_hash"]
+    ), (
+        f"expected: {taker_action._get_action_hash()}, ",
+        f"actual: {response_data['taker_result']['action_hash']}",
+    )
     ## Verify typed data hash
-    assert "0x" + maker_action._to_typed_data_hash().hex() == response_data['maker_result']['typed_data_hash'], f"Maker typed data hash mismatch (expected: {maker_action._to_typed_data_hash()}, actual: {response_data['maker_result']['typed_data_hash']})"
-    assert "0x" + taker_action._to_typed_data_hash().hex() == response_data['taker_result']['typed_data_hash'], f"Taker typed data hash mismatch (expected: {taker_action._to_typed_data_hash()}, actual: {response_data['taker_result']['typed_data_hash']})"
-
-
-if __name__ == "__main__":
-    main()
+    assert (
+        "0x" + maker_action._to_typed_data_hash().hex()
+        == response_data["maker_result"]["typed_data_hash"]
+    ), (
+        f"expected: {maker_action._to_typed_data_hash()}, "
+        + f"actual: {response_data['maker_result']['typed_data_hash']}"
+    )
+    assert (
+        "0x" + taker_action._to_typed_data_hash().hex()
+        == response_data["taker_result"]["typed_data_hash"]
+    ), (
+        f"expected: {taker_action._to_typed_data_hash()}, "
+        + f"actual: {response_data['taker_result']['typed_data_hash']}"
+    )
