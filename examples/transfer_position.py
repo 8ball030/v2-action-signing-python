@@ -33,7 +33,7 @@ def main():
     #############################################
     # Protocol Constants from docs.lyra.finance #
     #############################################
-    
+
     DOMAIN_SEPARATOR = "0x9bcf4dc06df5d8bf23af818d5716491b995020f377d3b7b64c29ed14e3dd1105"
     ACTION_TYPEHASH = "0x4d7a9f27c403ff9c0f19bce61d76d82f9aa29f8d6d4b0c5474607d9770d1af17"
     
@@ -45,8 +45,9 @@ def main():
     ###################################
 
     # First get user's positions to find what instruments they have
+    url = "https://api-demo.lyra.finance/private/get_positions"
     positions_response = requests.post(
-        "https://api-demo.lyra.finance/private/get_positions",
+        url,
         json={"subaccount_id": FROM_SUBACCOUNT_ID},
         headers={
             **utils.sign_rest_auth_header(
@@ -71,8 +72,9 @@ def main():
 
     # Now get the full instrument details from get_instruments
     if instrument_type == "perp":
+        url = "https://api-demo.lyra.finance/public/get_instruments"
         instruments_response = requests.post(
-            "https://api-demo.lyra.finance/public/get_instruments",
+            url,
             json={"currency": "ETH", "instrument_type": "perp", "expired": False},
             headers={"accept": "application/json", "content-type": "application/json"},
         )
@@ -81,8 +83,9 @@ def main():
             inst for inst in instruments if inst["instrument_name"] == instrument_name
         )
     else:
+        url = "https://api-demo.lyra.finance/public/get_instruments"
         instruments_response = requests.post(
-            "https://api-demo.lyra.finance/public/get_instruments",
+            url,
             json={"currency": "ETH", "instrument_type": "option", "expired": False},
             headers={"accept": "application/json", "content-type": "application/json"},
         )
@@ -145,7 +148,6 @@ def main():
     maker_signature_expiry = utils.MAX_INT_32
 
     # Create taker order parameters - ensure different nonce
-    time.sleep(0.001)  # Small delay to ensure different timestamp
     taker_nonce = utils.get_action_nonce()
     taker_signature_expiry = utils.MAX_INT_32
 
@@ -212,8 +214,9 @@ def main():
     print(f"Using instrument: {instrument['instrument_name']}")
     print(f"Transfer amount: {transfer_amount}")
 
+    url = "https://api-demo.lyra.finance/private/transfer_position"
     response = requests.post(
-        "https://api-demo.lyra.finance/private/transfer_position",
+        url,
         json={
             "wallet": DERIVE_CONTRACT_WALLET_ADDRESS,
             "maker_params": maker_params,

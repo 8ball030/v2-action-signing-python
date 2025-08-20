@@ -15,9 +15,9 @@ def main():
     # Below account, subaccount, session key setup in advance via UX
     # Refer to docs.lyra.finance for creating account / depositing / creating session key via UX
 
-    SMART_CONTRACT_WALLET_ADDRESS = "0xeda0656dab4094C7Dc12F8F12AF75B5B3Af4e776"
-    SESSION_KEY_PRIVATE_KEY = "0x83ee63dc6655509aabce0f7e501a31c511195e61e9d0e9917f0a55fd06041a66" # address: 0xD32E49C43A68256764bEAa88d87e99cC68aF4a1f
-    SUBACCOUNT_ID = 137402
+    SMART_CONTRACT_WALLET_ADDRESS = "0x8772185a1516f0d61fC1c2524926BfC69F95d698"
+    SESSION_KEY_PRIVATE_KEY = "0x2ae8be44db8a590d20bffbe3b6872df9b569147d3bf6801a35a28281a4816bbd"
+    SUBACCOUNT_ID = 30769
 
     web3_client = Web3()
     session_key_wallet = web3_client.eth.account.from_key(SESSION_KEY_PRIVATE_KEY)
@@ -39,7 +39,7 @@ def main():
         "https://api-demo.lyra.finance/public/get_instruments",
         json={
             "expired": False,
-            "instrument_type": "perp",
+            "instrument_type": "option",
             "currency": "ETH",
         },
         headers={"accept": "application/json", "content-type": "application/json"},
