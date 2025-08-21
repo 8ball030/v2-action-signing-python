@@ -8,6 +8,8 @@ from .module_data import (
     MakerTransferPositionsModuleData,
     TakerTransferPositionsModuleData,
     TransferPositionsDetails,
+    MakerTransferPositionModuleData,
+    TakerTransferPositionModuleData,
     RFQQuoteModuleData,
     RFQQuoteDetails,
     RFQExecuteModuleData,
