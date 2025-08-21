@@ -131,7 +131,6 @@ def main():
 
     print(f"Original position amount: {original_position_amount}")
     print(f"Transfer amount: {transfer_amount}")
-    print("Creating transfer-specific signed actions using inheritance-based wrapper classes...")
 
     # Create maker order parameters
     base_nonce = utils.get_action_nonce()
