@@ -10,7 +10,6 @@ from .transfer_positions import (
     TransferPositionsDetails,
 )
 from .transfer_position import (
-    TransferPositionModuleData,
     MakerTransferPositionModuleData,
     TakerTransferPositionModuleData,
 )

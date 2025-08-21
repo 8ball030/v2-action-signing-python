@@ -13,7 +13,12 @@ from decimal import ROUND_HALF_UP, Decimal
 import requests
 from web3 import Web3
 
-from derive_action_signing import SignedAction, TradeModuleData, utils
+from derive_action_signing import (
+    SignedAction,
+    MakerTransferPositionModuleData, 
+    TakerTransferPositionModuleData,
+    utils,
+)
 
 
 def main():
@@ -126,7 +131,7 @@ def main():
 
     print(f"Original position amount: {original_position_amount}")
     print(f"Transfer amount: {transfer_amount}")
-    print("Creating transfer-specific signed actions using wrapper classes...")
+    print("Creating transfer-specific signed actions using inheritance-based wrapper classes...")
 
     # Create maker order parameters
     base_nonce = utils.get_action_nonce()
