@@ -45,9 +45,9 @@ def main():
     # single position transfers use TRADE_MODULE_ADDRESS
     TRADE_MODULE_ADDRESS = "0x87F2863866D85E3192a35A73b388BD625D83f2be"
 
-    ###################################
+    ############################################
     # Get user's positions and find instrument #
-    ###################################
+    ############################################
 
     # First get user's positions to find what instruments they have
     url = "https://api-demo.lyra.finance/private/get_positions"
