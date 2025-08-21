@@ -9,3 +9,8 @@ from .transfer_positions import (
     TakerTransferPositionsModuleData,
     TransferPositionsDetails,
 )
+from .transfer_position import (
+    TransferPositionModuleData,
+    MakerTransferPositionModuleData,
+    TakerTransferPositionModuleData,
+)

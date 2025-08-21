@@ -108,7 +108,9 @@ def main():
     )
 
     position_amount = position_amount.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
-    position_price = position_price.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    position_price = abs(
+        position_price.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    )
 
     print(f"Position amount: {position_amount}")
     print(f"Position average price: {position_price}")
@@ -117,38 +119,22 @@ def main():
     # Define Transfer #
     ###################
 
-    # Transfer amount and price from position data, with 0 fees for transfers
+    # Transfer amount and price from position data
     transfer_amount = abs(position_amount)  # Use absolute value for transfer amount
     transfer_price = position_price
-    max_fee = Decimal("0")  # No fees for transfers
-
-    # Determine maker direction - maker must reduce their position
-    # If position is positive, maker sells (reduces long position)
-    # If position is negative, maker buys (reduces short position)
     original_position_amount = Decimal(position["amount"])
-    if original_position_amount > 0:
-        maker_is_bid = False  # Sell to reduce long position
-        maker_direction = "sell"
-        taker_is_bid = True  # Taker buys
-        taker_direction = "buy"
-    else:
-        maker_is_bid = True  # Buy to reduce short position
-        maker_direction = "buy"
-        taker_is_bid = False  # Taker sells
-        taker_direction = "sell"
 
     print(f"Original position amount: {original_position_amount}")
-    print(f"Maker direction: {maker_direction} (reducing position)")
-    print(f"Taker direction: {taker_direction}")
-
-    print("Creating transfer-specific signed actions...")
+    print(f"Transfer amount: {transfer_amount}")
+    print("Creating transfer-specific signed actions using wrapper classes...")
 
     # Create maker order parameters
-    maker_nonce = utils.get_action_nonce()
+    base_nonce = utils.get_action_nonce()
+    maker_nonce = base_nonce
     maker_signature_expiry = utils.MAX_INT_32
 
     # Create taker order parameters - ensure different nonce
-    taker_nonce = utils.get_action_nonce()
+    taker_nonce = base_nonce + 1
     taker_signature_expiry = utils.MAX_INT_32
 
     maker_action = SignedAction(
@@ -158,14 +144,13 @@ def main():
         signature_expiry_sec=maker_signature_expiry,
         nonce=maker_nonce,
         module_address=TRADE_MODULE_ADDRESS,
-        module_data=TradeModuleData(
+        module_data=MakerTransferPositionModuleData(
             asset_address=instrument["base_asset_address"],
             sub_id=int(instrument["base_asset_sub_id"]),
             limit_price=transfer_price,
             amount=transfer_amount,
-            max_fee=max_fee,
             recipient_id=FROM_SUBACCOUNT_ID,
-            is_bid=maker_is_bid,
+            position_amount=original_position_amount,
         ),
         DOMAIN_SEPARATOR=DOMAIN_SEPARATOR,
         ACTION_TYPEHASH=ACTION_TYPEHASH,
@@ -178,14 +163,13 @@ def main():
         signature_expiry_sec=taker_signature_expiry,
         nonce=taker_nonce,
         module_address=TRADE_MODULE_ADDRESS,
-        module_data=TradeModuleData(
+        module_data=TakerTransferPositionModuleData(
             asset_address=instrument["base_asset_address"],
             sub_id=int(instrument["base_asset_sub_id"]),
             limit_price=transfer_price,
             amount=transfer_amount,
-            max_fee=max_fee,
             recipient_id=TO_SUBACCOUNT_ID,
-            is_bid=taker_is_bid,
+            position_amount=original_position_amount,
         ),
         DOMAIN_SEPARATOR=DOMAIN_SEPARATOR,
         ACTION_TYPEHASH=ACTION_TYPEHASH,
@@ -198,15 +182,15 @@ def main():
     # Initiate Transfer #
     #####################
 
-    # Create transfer_position parameters using dynamic directions
+    # Create transfer_position parameters using wrapper class directions
     maker_params = {
-        "direction": maker_direction,
+        "direction": maker_action.module_data.get_direction(),
         "instrument_name": instrument["instrument_name"],
         **maker_action.to_json(),
     }
 
     taker_params = {
-        "direction": taker_direction,
+        "direction": taker_action.module_data.get_direction(),
         "instrument_name": instrument["instrument_name"],
         **taker_action.to_json(),
     }
